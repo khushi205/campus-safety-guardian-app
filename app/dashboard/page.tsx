@@ -69,7 +69,7 @@ export default function DashboardPage() {
 
   return (
     <div className="min-h-screen bg-background dark:bg-background">
-      {/* Navigation */}
+     
       <nav className="sticky top-0 z-50 border-b border-border bg-card shadow-sm">
         <div className="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-2">
