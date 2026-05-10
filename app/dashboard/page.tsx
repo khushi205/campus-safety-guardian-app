@@ -1,55 +1,108 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { ShieldAlert, MapPin, Users, Settings, Clock, CheckCircle, AlertCircle } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 
 interface WalkSession {
-  id: string;
+  _id: string;
   destination: string;
-  startTime: Date;
-  estimatedDuration: number;
-  status: 'active' | 'completed' | 'cancelled';
+  updatedAt: Date;
+  estimatedTime: number;
+  status: 'Active' | 'Completed' | 'Cancelled';
   sharedWith: string[];
 }
 
 export default function DashboardPage() {
-  const [user] = useState({
-    name: 'John Doe',
-    email: 'john@university.edu',
-  });
+  const router = useRouter();
+  const API_URL = process.env.NEXT_PUBLIC_API_URL;
 
-  const [walks, setWalks] = useState<WalkSession[]>([
-    {
-      id: '1',
-      destination: 'Library',
-      startTime: new Date(Date.now() - 15 * 60000),
-      estimatedDuration: 30,
-      status: 'active',
-      sharedWith: ['Mom', 'Campus Security'],
-    },
-    {
-      id: '2',
-      destination: 'Student Center',
-      startTime: new Date(Date.now() - 2 * 3600000),
-      estimatedDuration: 45,
-      status: 'completed',
-      sharedWith: ['Mom', 'Best Friend'],
-    },
-  ]);
+  const [user, setUser] = useState<any>(null);
+  const [walks, setWalks] = useState<WalkSession[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const [trustedContacts] = useState([
-    { id: '1', name: 'Mom', phone: '+1-555-0100', relationship: 'Parent' },
-    { id: '2', name: 'Best Friend', phone: '+1-555-0101', relationship: 'Friend' },
-  ]);
+  // ✅ Fetch Profile + Walks
+  useEffect(() => {
+    const fetchData = async () => {
+      const token = localStorage.getItem('token');
+
+      if (!token) {
+        router.push('/login');
+        return;
+      }
+
+      try {
+        // Fetch Profile
+        const profileRes = await fetch(`${API_URL}/api/users/profile`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+
+        if (!profileRes.ok) throw new Error();
+
+        const profileData = await profileRes.json();
+        setUser(profileData);
+
+        // Fetch Walks
+        const walksRes = await fetch(`${API_URL}/api/walks`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+
+        const walksData = await walksRes.json();
+
+        // clone first, then reverse (important!)
+        const reversedWalks = [...walksData].reverse();
+
+        setWalks(reversedWalks);
+
+      } catch {
+        localStorage.removeItem('token');
+        router.push('/login');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
+  }, []);
+
+  // ✅ End Walk
+  const handleEndWalk = async (id: string, status: string) => {
+    const token = localStorage.getItem('token');
+
+    try {
+      const res = await fetch(`${API_URL}/api/walks/${id}/status`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ status: status }),
+      });
+
+      if (!res.ok) throw new Error();
+
+      // Update UI
+      setWalks(prev =>
+        prev.map(w =>
+          w._id === id ? { ...w, status: status } : w
+        )
+      );
+
+    } catch {
+      alert('Failed to update walk');
+    }
+  };
+
+
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'active':
+      case 'Active':
         return 'bg-accent/10 text-accent border-accent/20';
-      case 'completed':
+      case 'Completed':
         return 'bg-green-50 dark:bg-green-950/30 text-green-700 dark:text-green-400 border-green-200/50 dark:border-green-800/50';
       default:
         return 'bg-muted text-muted-foreground border-border';
@@ -58,18 +111,22 @@ export default function DashboardPage() {
 
   const getStatusIcon = (status: string) => {
     switch (status) {
-      case 'active':
+      case 'Active':
         return <Clock className="w-4 h-4" />;
-      case 'completed':
+      case 'Completed':
         return <CheckCircle className="w-4 h-4" />;
       default:
         return <AlertCircle className="w-4 h-4" />;
     }
   };
 
+  if (loading) {
+    return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
+  }
+
   return (
     <div className="min-h-screen bg-background dark:bg-background">
-     
+
       <nav className="sticky top-0 z-50 border-b border-border bg-card shadow-sm">
         <div className="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -120,7 +177,7 @@ export default function DashboardPage() {
                   </Card>
                 ) : (
                   walks.map(walk => (
-                    <Card key={walk.id} className="p-6 border border-border">
+                    <Card key={walk._id} className="p-6 border border-border">
                       <div className="flex items-start justify-between mb-4">
                         <div className="flex items-center gap-4">
                           <div className={`p-3 rounded-lg ${getStatusColor(walk.status)}`}>
@@ -129,26 +186,32 @@ export default function DashboardPage() {
                           <div>
                             <h3 className="font-bold text-lg">{walk.destination}</h3>
                             <p className="text-sm text-muted-foreground">
-                              Estimated duration: {walk.estimatedDuration} min
+                              Estimated duration: {walk.estimatedTime} min
+                            </p>
+                            <p className="text-sm text-muted-foreground">
+                            {walk.updatedAt ? `Last updated: ${new Date(walk.updatedAt).toLocaleDateString([], { hour: '2-digit', minute: '2-digit' })}` : ''}
                             </p>
                           </div>
                         </div>
                         <div className={`px-3 py-1 rounded-full text-xs font-semibold ${getStatusColor(walk.status)}`}>
-                          {walk.status === 'active' ? '🟢 Active' : walk.status === 'completed' ? '✓ Completed' : 'Cancelled'}
+                          {walk.status === 'Active' ? '🟢 Active' : walk.status === 'Completed' ? '✓ Completed' : 'Cancelled'}
                         </div>
                       </div>
 
-                      <div className="mb-4 text-sm text-muted-foreground">
+                      {/* <div className="mb-4 text-sm text-muted-foreground">
                         Shared with: {walk.sharedWith.join(', ')}
-                      </div>
+                      </div> */}
 
-                      {walk.status === 'active' && (
+                      {walk.status === 'Active' && (
                         <div className="flex gap-2">
-                          <Link href={`/walk/${walk.id}`}>
+                          <Link href={`/walk/${walk._id}`}>
                             <Button variant="outline" className="flex-1 bg-transparent">View Live Map</Button>
                           </Link>
-                          <Button variant="outline" className="text-destructive hover:bg-destructive/10 bg-transparent">
+                          <Button onClick={() => handleEndWalk(walk._id, 'Completed')} variant="outline" className="text-green-600 hover:bg-destructive/10 bg-transparent">
                             End Walk
+                          </Button>
+                          <Button onClick={() => handleEndWalk(walk._id, 'Cancelled')} variant="outline" className="text-destructive hover:bg-destructive/10 bg-transparent">
+                            Cancel Walk
                           </Button>
                         </div>
                       )}
@@ -170,15 +233,16 @@ export default function DashboardPage() {
                 </Link>
               </div>
               <div className="space-y-3">
-                {trustedContacts.map(contact => (
-                  <Card key={contact.id} className="p-4 border border-border">
+                {user.trustedContacts.map(contact => (
+                  <Card key={contact._id} className="p-4 border border-border">
                     <div className="flex items-center gap-3">
                       <div className="w-10 h-10 rounded-full bg-accent/20 flex items-center justify-center">
                         <Users className="w-5 h-5 text-accent" />
                       </div>
                       <div className="flex-1">
                         <p className="font-semibold text-sm">{contact.name}</p>
-                        <p className="text-xs text-muted-foreground">{contact.relationship}</p>
+                        <p className="text-xs text-muted-foreground">{contact.relation}</p>
+                        <p className="text-xs text-muted-foreground">{contact.number}</p>
                       </div>
                     </div>
                   </Card>

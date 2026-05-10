@@ -47,7 +47,7 @@ export default function LandingPage() {
             </div>
           </div>
           <div className="bg-gradient-to-br from-primary/10 to-accent/10 rounded-lg p-8 border border-primary/20 h-96 flex items-center justify-center">
-            <MapPin className="w-32 h-32 text-primary/30" />
+            <img src="https://frontpage.gcsu.edu/sites/default/files/2025-09/CampusSafety3.jpg" alt="" />
           </div>
         </div>
       </section>
@@ -149,7 +149,7 @@ export default function LandingPage() {
       {/* Footer */}
       <footer className="border-t border-border px-6 py-8 bg-secondary/50 dark:bg-secondary/10">
         <div className="max-w-6xl mx-auto flex justify-between items-center">
-          <p className="text-sm text-muted-foreground">© 2024 Campus Safety Guardian. All rights reserved.</p>
+          <p className="text-sm text-muted-foreground">© 2026 Campus Safety Guardian. All rights reserved.</p>
           <div className="flex gap-6 text-sm text-muted-foreground">
             <a href="#" className="hover:text-foreground transition">Privacy</a>
             <a href="#" className="hover:text-foreground transition">Terms</a>

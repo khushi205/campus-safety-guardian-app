@@ -1,6 +1,6 @@
 'use client';
 
-import React from "react"
+import React, { useEffect } from "react"
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
@@ -11,24 +11,51 @@ import { Card } from '@/components/ui/card';
 import { ShieldAlert, MapPin, Clock, Users, ChevronLeft } from 'lucide-react';
 
 interface Contact {
-  id: string;
+  _id: string;
   name: string;
-  phone: string;
-  relationship: string;
+  number: string;
+  relation: string;
 }
 
 export default function StartWalkPage() {
   const router = useRouter();
+  const API_URL = process.env.NEXT_PUBLIC_API_URL;
+
   const [destination, setDestination] = useState('');
   const [duration, setDuration] = useState('30');
+  const [contacts, setContacts] = useState<Contact[]>([]);
   const [selectedContacts, setSelectedContacts] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
 
-  const [contacts] = useState<Contact[]>([
-    { id: '1', name: 'Mom', phone: '+1-555-0100', relationship: 'Parent' },
-    { id: '2', name: 'Best Friend', phone: '+1-555-0101', relationship: 'Friend' },
-    { id: '3', name: 'Campus Security', phone: '+1-555-0102', relationship: 'Security' },
-  ]);
+  useEffect(() => {
+    const fetchContacts = async () => {
+      const token = localStorage.getItem('token');
+
+      if (!token) {
+        router.push('/login');
+        return;
+      }
+
+      try {
+        const res = await fetch(`${API_URL}/api/users/profile`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+
+        if (!res.ok) throw new Error();
+
+        const data = await res.json();
+        setContacts(data.trustedContacts || []);
+
+      } catch {
+        localStorage.removeItem('token');
+        router.push('/login');
+      }
+    };
+
+    fetchContacts();
+  }, []);
 
   const handleContactToggle = (contactId: string) => {
     setSelectedContacts(prev =>
@@ -49,31 +76,39 @@ export default function StartWalkPage() {
     }
 
     if (selectedContacts.length === 0) {
-      alert('Please select at least one contact to share your walk');
+      alert('Select at least one contact');
       setLoading(false);
       return;
     }
 
+    const token = localStorage.getItem('token');
+
     try {
-      // TODO: Connect to backend API to start walk session
-      const response = await fetch('/api/walks/start', {
+      const res = await fetch(`${API_URL}/api/walks/create`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
         body: JSON.stringify({
           destination,
-          estimatedDuration: parseInt(duration),
-          sharedWith: selectedContacts,
+          estimatedTime: parseInt(duration),
+          shareWith: selectedContacts,
         }),
       });
 
-      if (!response.ok) {
-        throw new Error('Failed to start walk');
-      }
+      const data = await res.json();
 
-      const data = await response.json();
-      router.push(`/walk/${data.id}`);
-    } catch (err) {
-      alert(err instanceof Error ? err.message : 'An error occurred');
+      if (!res.ok) throw new Error(data.message);
+
+      // ✅ Redirect to Dashboard after creating walk
+      router.push('/dashboard');
+
+   
+      // router.push(`/walk/${data.id}`);
+    } catch (err: any) {
+      alert(err.message || 'Failed to start walk');
+    } finally {
       setLoading(false);
     }
   };
@@ -132,11 +167,10 @@ export default function StartWalkPage() {
                       key={min}
                       type="button"
                       onClick={() => setDuration(min)}
-                      className={`flex-1 py-3 px-4 rounded-lg font-semibold transition ${
-                        duration === min
+                      className={`flex-1 py-3 px-4 rounded-lg font-semibold transition ${duration === min
                           ? 'bg-accent text-accent-foreground'
                           : 'bg-secondary text-foreground border border-border hover:border-accent'
-                      }`}
+                        }`}
                     >
                       {min} min
                     </button>
@@ -155,16 +189,16 @@ export default function StartWalkPage() {
                 </label>
                 <div className="space-y-3">
                   {contacts.map(contact => (
-                    <label key={contact.id} className="flex items-center gap-3 p-4 border border-border rounded-lg cursor-pointer hover:bg-secondary/50 transition">
+                    <label key={contact._id} className="flex items-center gap-3 p-4 border border-border rounded-lg cursor-pointer hover:bg-secondary/50 transition">
                       <input
                         type="checkbox"
-                        checked={selectedContacts.includes(contact.id)}
-                        onChange={() => handleContactToggle(contact.id)}
+                        checked={selectedContacts.includes(contact._id)}
+                        onChange={() => handleContactToggle(contact._id)}
                         className="w-5 h-5 accent-accent"
                       />
                       <div className="flex-1">
                         <p className="font-semibold">{contact.name}</p>
-                        <p className="text-sm text-muted-foreground">{contact.relationship} • {contact.phone}</p>
+                        <p className="text-sm text-muted-foreground">{contact.relation} • {contact.number}</p>
                       </div>
                     </label>
                   ))}

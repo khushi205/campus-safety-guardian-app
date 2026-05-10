@@ -1,6 +1,6 @@
 'use client';
 
-import React from "react"
+import React, { useEffect } from "react"
 
 import { useState } from 'react';
 import Link from 'next/link';
@@ -13,61 +13,132 @@ import { ShieldAlert, ChevronLeft, Users, Plus, Trash2 } from 'lucide-react';
 interface Contact {
   id: string;
   name: string;
-  phone: string;
+  number: string;
   email: string;
-  relationship: string;
+  relation: string;
 }
 
 export default function ContactsPage() {
   const router = useRouter();
-  const [contacts, setContacts] = useState<Contact[]>([
-    { id: '1', name: 'Mom', phone: '+1-555-0100', email: 'mom@email.com', relationship: 'Parent' },
-    { id: '2', name: 'Best Friend', phone: '+1-555-0101', email: 'friend@email.com', relationship: 'Friend' },
-    { id: '3', name: 'Campus Security', phone: '+1-555-0102', email: 'security@university.edu', relationship: 'Security' },
-  ]);
-
+  const [contacts, setContacts] = useState<Contact[]>([]);
+  const API_URL = process.env.NEXT_PUBLIC_API_URL;
   const [showForm, setShowForm] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [formData, setFormData] = useState({
     name: '',
-    phone: '',
+    number: '',
     email: '',
-    relationship: 'Friend',
+    relation: 'Friend',
   });
+
+  useEffect(() => {
+    const fetchContacts = async () => {
+      const token = localStorage.getItem('token');
+
+      if (!token) {
+        router.push('/login');
+        return;
+      }
+
+      try {
+        const res = await fetch(`${API_URL}/api/users/profile`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+
+        if (!res.ok) throw new Error();
+
+        const data = await res.json();
+        setContacts(data.trustedContacts || []);
+
+      } catch {
+        localStorage.removeItem('token');
+        router.push('/login');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchContacts();
+  }, []);
+
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
   };
 
-  const handleAddContact = (e: React.FormEvent<HTMLFormElement>) => {
+  // ✅ Add Contact API
+  const handleAddContact = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
 
-    if (!formData.name || !formData.phone) {
-      alert('Please fill in required fields');
+    if (!formData.name || !formData.number) {
+      alert('Please fill required fields');
       return;
     }
 
-    const newContact: Contact = {
-      id: Date.now().toString(),
-      ...formData,
-    };
+    const token = localStorage.getItem('token');
 
-    setContacts([...contacts, newContact]);
-    setFormData({
-      name: '',
-      phone: '',
-      email: '',
-      relationship: 'Friend',
-    });
-    setShowForm(false);
-  };
+    try {
+      const res = await fetch(`${API_URL}/api/users/add-trusted`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(formData),
+      });
 
-  const handleDeleteContact = (id: string) => {
-    const confirmed = confirm('Are you sure you want to delete this contact?');
-    if (confirmed) {
-      setContacts(contacts.filter(c => c.id !== id));
+      const data = await res.json();
+
+      if (!res.ok) throw new Error(data.message);
+
+      setContacts(data.user.trustedContacts);
+      setShowForm(false);
+
+      setFormData({
+        name: '',
+        number: '',
+        email: '',
+        relation: 'Friend',
+      });
+
+    } catch (err: any) {
+      alert(err.message || 'Failed to add contact');
     }
   };
+
+   // ✅ Delete Contact API
+  const handleDeleteContact = async (id: string) => {
+    const confirmed = confirm('Are you sure you want to delete this contact?');
+    if (!confirmed) return;
+
+    const token = localStorage.getItem('token');
+
+    try {
+      const res = await fetch(
+        `${API_URL}/api/users/delete-contact/${id}`,
+        {
+          method: 'DELETE',
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      if (!res.ok) throw new Error();
+
+      setContacts(contacts.filter(c => c._id !== id));
+
+    } catch {
+      alert('Failed to delete contact');
+    }
+  };
+
+   if (loading) {
+    return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
+  }
 
   return (
     <div className="min-h-screen bg-background dark:bg-background">
@@ -116,8 +187,8 @@ export default function ContactsPage() {
                 <label className="block text-sm font-medium mb-2">Phone Number *</label>
                 <Input
                   type="tel"
-                  name="phone"
-                  value={formData.phone}
+                  name="number"
+                  value={formData.number}
                   onChange={handleInputChange}
                   placeholder="+1-555-0000"
                   required
@@ -138,8 +209,8 @@ export default function ContactsPage() {
               <div>
                 <label className="block text-sm font-medium mb-2">Relationship</label>
                 <select
-                  name="relationship"
-                  value={formData.relationship}
+                  name="relation"
+                  value={formData.relation}
                   onChange={handleInputChange}
                   className="w-full px-4 py-2 border border-border rounded-lg bg-background dark:bg-card focus:outline-none focus:ring-2 focus:ring-accent"
                 >
@@ -191,7 +262,7 @@ export default function ContactsPage() {
           ) : (
             <div className="space-y-3">
               {contacts.map(contact => (
-                <Card key={contact.id} className="p-5 border border-border">
+                <Card key={contact._id} className="p-5 border border-border">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-4 flex-1">
                       <div className="w-12 h-12 rounded-full bg-accent/20 flex items-center justify-center flex-shrink-0">
@@ -200,13 +271,13 @@ export default function ContactsPage() {
                       <div className="flex-1">
                         <h3 className="font-bold text-lg">{contact.name}</h3>
                         <div className="text-sm text-muted-foreground space-y-1">
-                          <p>{contact.relationship} • {contact.phone}</p>
+                          <p>{contact.relation} • {contact.number}</p>
                           {contact.email && <p>{contact.email}</p>}
                         </div>
                       </div>
                     </div>
                     <button
-                      onClick={() => handleDeleteContact(contact.id)}
+                      onClick={() => handleDeleteContact(contact._id)}
                       className="p-2 text-destructive hover:bg-destructive/10 rounded-lg transition"
                       title="Delete contact"
                     >

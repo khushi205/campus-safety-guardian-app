@@ -1,22 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-/**
- * POST /api/auth/login
- * 
- * Authenticates a user and returns auth token
- * 
- * Request body:
- * {
- *   email: string,
- *   password: string
- * }
- * 
- * TODO: Connect to Firebase Authentication
- * Steps:
- * 1. Verify email and password against Firebase
- * 2. Generate or retrieve auth token
- * 3. Return user data and token
- */
+
+ 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
@@ -30,9 +15,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // TODO: Firebase login logic
-    // const user = await signInWithEmailAndPassword(email, password);
-    // const token = await user.getIdToken();
+  
 
     return NextResponse.json({
       success: true,

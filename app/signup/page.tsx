@@ -26,12 +26,11 @@ export default function SignupPage() {
     setFormData(prev => ({ ...prev, [name]: value }));
   };
 
-  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+  const handleSingupSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setError('');
     setLoading(true);
 
-    // Client-side validation
     if (!formData.name || !formData.email || !formData.password) {
       setError('Please fill in all fields');
       setLoading(false);
@@ -51,21 +50,33 @@ export default function SignupPage() {
     }
 
     try {
-      // TODO: Connect to Firebase/backend API
-      const response = await fetch('/api/auth/signup', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData),
-      });
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/api/users/signup`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name: formData.name,
+            email: formData.email,
+            password: formData.password,
+          }),
+        }
+      );
+
+      const data = await response.json();
 
       if (!response.ok) {
-        throw new Error('Signup failed');
+        throw new Error(data.message || 'Signup failed');
       }
 
-      // Redirect to dashboard
+      // ✅ Save JWT token
+      localStorage.setItem('token', data.token);
+      localStorage.setItem('userid', data.user._id);
+      // Redirect
       router.push('/dashboard');
+
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred');
+      setError(err instanceof Error ? err.message : 'Something went wrong');
     } finally {
       setLoading(false);
     }
@@ -90,7 +101,7 @@ export default function SignupPage() {
             </div>
           )}
 
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={handleSingupSubmit} className="space-y-4">
             <div>
               <label className="block text-sm font-medium mb-2">Full Name</label>
               <Input

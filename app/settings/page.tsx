@@ -5,23 +5,121 @@ import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { ShieldAlert, ChevronLeft, Bell, Lock, Users, LogOut } from 'lucide-react';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 export default function SettingsPage() {
   const router = useRouter();
+
   const [notifications, setNotifications] = useState(true);
   const [locationTracking, setLocationTracking] = useState(true);
+  const [user, setUser] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [changing, setChanging] = useState(false);
 
-  const handleLogout = async () => {
+  const API_URL = process.env.NEXT_PUBLIC_API_URL;
+
+  // ✅ Fetch Profile
+  useEffect(() => {
+    const fetchProfile = async () => {
+      const token = localStorage.getItem('token');
+
+      if (!token) {
+        router.push('/login');
+        return;
+      }
+
+      try {
+        const res = await fetch(`${API_URL}/api/users/profile`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+
+        if (!res.ok) throw new Error('Unauthorized');
+
+        const data = await res.json();
+        setUser(data);
+
+      } catch (error) {
+        localStorage.removeItem('token');
+        router.push('/login');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchProfile();
+  }, []);
+
+  // ✅ Change Password
+  const handleChangePassword = async () => {
+    if (!newPassword || !confirmPassword) {
+      alert('Please fill all fields');
+      return;
+    }
+
+    if (newPassword.length < 6) {
+      alert('Password must be at least 6 characters');
+      return;
+    }
+
+    if (newPassword !== confirmPassword) {
+      alert('Passwords do not match');
+      return;
+    }
+
+    try {
+      setChanging(true);
+
+      const res = await fetch(`${API_URL}/api/users/change-password`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: user?.email,
+          newPassword,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message);
+
+      alert('Password updated successfully ✅');
+
+      setIsPasswordModalOpen(false);
+      setNewPassword('');
+      setConfirmPassword('');
+
+    } catch (err: any) {
+      alert(err.message || 'Failed to change password');
+    } finally {
+      setChanging(false);
+    }
+  };
+
+  // ✅ Logout
+  const handleLogout = () => {
     const confirmed = confirm('Are you sure you want to sign out?');
     if (confirmed) {
-      // TODO: Connect to backend logout
+      localStorage.removeItem('token');
+      localStorage.removeItem('userid');
       router.push('/');
     }
   };
 
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        Loading...
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-background dark:bg-background">
+
       {/* Header */}
       <nav className="sticky top-0 z-50 border-b border-border bg-card shadow-sm">
         <div className="max-w-2xl mx-auto px-6 py-4 flex items-center justify-between">
@@ -36,8 +134,8 @@ export default function SettingsPage() {
         </div>
       </nav>
 
-      {/* Main Content */}
       <div className="max-w-2xl mx-auto px-6 py-8">
+
         {/* Profile Section */}
         <section className="mb-8">
           <h2 className="text-2xl font-bold mb-4">Profile</h2>
@@ -45,15 +143,12 @@ export default function SettingsPage() {
             <div className="space-y-4">
               <div>
                 <label className="text-sm text-muted-foreground">Full Name</label>
-                <p className="font-semibold mt-1">John Doe</p>
+                <p className="font-semibold mt-1">{user?.name}</p>
               </div>
               <div>
                 <label className="text-sm text-muted-foreground">Email</label>
-                <p className="font-semibold mt-1">john@university.edu</p>
+                <p className="font-semibold mt-1">{user?.email}</p>
               </div>
-              <Button variant="outline" className="w-full bg-transparent">
-                Edit Profile
-              </Button>
             </div>
           </Card>
         </section>
@@ -62,7 +157,6 @@ export default function SettingsPage() {
         <section className="mb-8">
           <h2 className="text-2xl font-bold mb-4">Preferences</h2>
 
-          {/* Notifications */}
           <Card className="p-6 border border-border mb-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
@@ -84,7 +178,6 @@ export default function SettingsPage() {
             </div>
           </Card>
 
-          {/* Location Tracking */}
           <Card className="p-6 border border-border">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
@@ -111,28 +204,19 @@ export default function SettingsPage() {
         <section className="mb-8">
           <h2 className="text-2xl font-bold mb-4">Security</h2>
           <Card className="p-6 border border-border">
-            <div className="space-y-3">
-              <button className="flex items-center justify-between w-full p-3 rounded-lg hover:bg-secondary/50 transition">
-                <div className="flex items-center gap-3">
-                  <Lock className="w-5 h-5 text-accent" />
-                  <div className="text-left">
-                    <p className="font-semibold">Change Password</p>
-                    <p className="text-sm text-muted-foreground">Update your password</p>
-                  </div>
+            <button
+              onClick={() => setIsPasswordModalOpen(true)}
+              className="flex items-center justify-between w-full p-3 rounded-lg hover:bg-secondary/50 transition"
+            >
+              <div className="flex items-center gap-3">
+                <Lock className="w-5 h-5 text-accent" />
+                <div className="text-left">
+                  <p className="font-semibold">Change Password</p>
+                  <p className="text-sm text-muted-foreground">Update your password</p>
                 </div>
-                <span className="text-muted-foreground">→</span>
-              </button>
-              <button className="flex items-center justify-between w-full p-3 rounded-lg hover:bg-secondary/50 transition border-t border-border pt-3">
-                <div className="flex items-center gap-3">
-                  <ShieldAlert className="w-5 h-5 text-accent" />
-                  <div className="text-left">
-                    <p className="font-semibold">Two-Factor Authentication</p>
-                    <p className="text-sm text-muted-foreground">Add extra security</p>
-                  </div>
-                </div>
-                <span className="text-muted-foreground">→</span>
-              </button>
-            </div>
+              </div>
+              <span className="text-muted-foreground">→</span>
+            </button>
           </Card>
         </section>
 
@@ -140,21 +224,17 @@ export default function SettingsPage() {
         <section className="mb-8">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-2xl font-bold">Trusted Contacts</h2>
-            <Link href="/contacts">
-              <Button variant="outline" size="sm">Add Contact</Button>
-            </Link>
+            <Link href="/contacts"> <Button variant="outline" size="sm">Add Contact</Button> </Link>
           </div>
           <Card className="p-6 border border-border">
             <p className="text-muted-foreground mb-4">Manage your safety network</p>
             <Link href="/contacts">
               <Button className="w-full bg-accent text-accent-foreground hover:bg-accent/90">
-                <Users className="w-5 h-5 mr-2" />
-                Manage Contacts
+                <Users className="w-5 h-5 mr-2" /> Manage Contacts
               </Button>
             </Link>
           </Card>
         </section>
-
         {/* Logout Section */}
         <section className="mb-8">
           <Button
@@ -166,12 +246,62 @@ export default function SettingsPage() {
           </Button>
         </section>
 
-        {/* App Info */}
-        <Card className="p-6 border border-border bg-secondary/50 dark:bg-secondary/10 text-center">
-          <p className="text-sm text-muted-foreground mb-1">Campus Safety Guardian</p>
-          <p className="text-xs text-muted-foreground">Version 1.0.0 | Made for student safety</p>
-        </Card>
       </div>
+
+      {isPasswordModalOpen && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-card w-[90%] max-w-md p-6 rounded-xl shadow-xl">
+
+            <h2 className="text-xl font-bold mb-4">Change Password</h2>
+
+            <div className="space-y-4">
+
+              <div>
+                <label className="text-sm text-muted-foreground">
+                  New Password
+                </label>
+                <input
+                  type="password"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  className="w-full mt-1 p-2 rounded-lg border border-border bg-background"
+                />
+              </div>
+
+              <div>
+                <label className="text-sm text-muted-foreground">
+                  Confirm Password
+                </label>
+                <input
+                  type="password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  className="w-full mt-1 p-2 rounded-lg border border-border bg-background"
+                />
+              </div>
+
+              <div className="flex gap-3 pt-2">
+                <Button
+                  onClick={handleChangePassword}
+                  disabled={changing}
+                  className="flex-1 bg-accent text-accent-foreground"
+                >
+                  {changing ? 'Updating...' : 'Update Password'}
+                </Button>
+
+                <Button
+                  variant="outline"
+                  onClick={() => setIsPasswordModalOpen(false)}
+                  className="flex-1"
+                >
+                  Cancel
+                </Button>
+              </div>
+
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

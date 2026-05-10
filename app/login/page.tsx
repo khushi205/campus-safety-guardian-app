@@ -24,31 +24,36 @@ export default function LoginPage() {
     setFormData(prev => ({ ...prev, [name]: value }));
   };
 
-  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+  const handleLogin = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setError('');
     setLoading(true);
 
-    if (!formData.email || !formData.password) {
-      setError('Please fill in all fields');
-      setLoading(false);
-      return;
-    }
-
     try {
-      // TODO: Connect to Firebase/backend API
-      const response = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData),
-      });
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/api/users/login`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            email: formData.email,
+            password: formData.password,
+          }),
+        }
+      );
+
+      const data = await response.json();
 
       if (!response.ok) {
-        throw new Error('Login failed');
+        throw new Error(data.message || 'Login failed');
       }
 
-      // Redirect to dashboard
+      // ✅ Store JWT
+      localStorage.setItem('token', data.token);
+      localStorage.setItem('userid', data.user._id);
+
       router.push('/dashboard');
+
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Invalid credentials');
     } finally {
@@ -75,7 +80,7 @@ export default function LoginPage() {
             </div>
           )}
 
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={handleLogin} className="space-y-4">
             <div>
               <label className="block text-sm font-medium mb-2">Email</label>
               <Input
